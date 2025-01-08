@@ -168,7 +168,7 @@ for file_path in file_paths:
 
     # Parameters
     max_iterations = 1000  # Maximum iterations as a safety net
-    tabu_tenure = 8
+    tabu_tenure = 10
     no_improvement_limit = 50  # Terminate after 50 iterations without improvement
 
     # Run the tabu search algorithm
