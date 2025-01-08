@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt  # Importing matplotlib for plots
 import time
+from pulp import LpProblem, LpMinimize, LpVariable, lpSum, LpStatus, value
 
 # Step 1: Parse Problem Data
 def parse_problem(file_path):
@@ -155,6 +156,37 @@ def print_initial_solution_and_cost(num_agents, num_jobs, costs, resource_consum
     
     return solution, initial_cost
 
+# Calculate lower bound
+
+def calculate_lower_bound(num_agents, num_jobs, costs, resource_consumptions, resource_capacities):
+    # Create the problem variable
+    prob = LpProblem("GAP", LpMinimize)
+    
+    # Create variables
+    x = [[LpVariable(f'x_{i}_{j}', 0, 1, cat='Continuous') for j in range(num_jobs)] for i in range(num_agents)]
+    
+    # Objective function
+    prob += lpSum(costs[i][j] * x[i][j] for i in range(num_agents) for j in range(num_jobs)), "Total Cost"
+    
+    # Constraints
+    # Each job j should be assigned to exactly one agent
+    for j in range(num_jobs):
+        prob += lpSum(x[i][j] for i in range(num_agents)) == 1, f"Job_{j}_Assignment"
+    
+    # Resource constraints for each agent
+    for i in range(num_agents):
+        prob += lpSum(resource_consumptions[i][j] * x[i][j] for j in range(num_jobs)) <= resource_capacities[i], f"Agent_{i}_Resource"
+    
+    # Solve the problem
+    prob.solve()
+    
+    # Check the result status
+    if LpStatus[prob.status] == 'Optimal':
+        lower_bound = value(prob.objective)
+        return lower_bound
+    else:
+        return None
+
 # Step 7: Main Execution
 file_path_1 = r"problem-instances/problem_instance1.txt"
 file_path_2 = r"problem-instances/problem_instance2.txt"
@@ -163,15 +195,20 @@ file_path_3 = r"problem-instances/problem_instance3.txt"
 file_paths = [file_path_1, file_path_2, file_path_3]
 plot_data = []  # To store data for plotting
 
+# Main Execution for Lower Bound Calculation
 for file_path in file_paths:
     num_agents, num_jobs, costs, resource_consumptions, resource_capacities = parse_problem(file_path)
 
     # Parameters
     max_iterations = 1000  # Maximum iterations as a safety net
-    tabu_tenure = 8
+    tabu_tenure = 10 # Tabu tenure
     no_improvement_limit = 50  # Terminate after 50 iterations without improvement
+    
+    # Calculate the lower bound
+    lower_bound = calculate_lower_bound(num_agents, num_jobs, costs, resource_consumptions, resource_capacities)
+    print(f"Lower Bound for {file_path}: {lower_bound}")
 
-    # Run the tabu search algorithm
+    # Run the tabu search algorithm as before
     best_solution, best_cost, cost_history, execution_time = tabu_search(
         num_agents,
         num_jobs,
@@ -183,27 +220,9 @@ for file_path in file_paths:
         no_improvement_limit
     )
 
-    # Print initial solution and cost
     init_sol, init_cost = print_initial_solution_and_cost(num_agents, num_jobs, costs, resource_consumptions, resource_capacities)
 
     # Print the results in a table format
-    print(f"{'File Path':<20}{'Initial Solution':<40}{'Initial Cost':<15}{'Best Solution':<40}{'Best Cost':<15}{'Execution Time':<15}")
-    print("-" * 120)
-    print(f"{file_path:<20}{str(init_sol):<40}{init_cost:<15}{str(best_solution):<40}{best_cost:<15}{execution_time:<15}")
-
-    plot_data.append((file_path, cost_history))  # Collect data for plotting
-
-
-
-# Step 8: Plot Results
-plt.figure(figsize=(12, 6))
-
-for i, (file_path, cost_history) in enumerate(plot_data):
-    plt.plot(range(1, len(cost_history) + 1), cost_history, label=f"Instance {i+1}")
-
-plt.title("Cost vs. Iterations for Tabu Search")
-plt.xlabel("Iterations")
-plt.ylabel("Cost")
-plt.legend()
-plt.grid(True)
-plt.show()
+    print(f"{'File Path':<20}{'Initial Solution':<40}{'Initial Cost':<15}{'Best Solution':<40}{'Best Cost':<15}{'Lower Bound':<15}{'Execution Time':<15}")
+    print("-" * 135)
+    print(f"{file_path:<20}{str(init_sol):<40}{init_cost:<15}{str(best_solution):<40}{best_cost:<15}{lower_bound:<15}{execution_time:<15}")
